@@ -57,17 +57,21 @@
 - 如果需要前后端分离并直连 Worker, 找到 `Deploy Frontend`，点击 `Run workflow` 选择分支手动部署
 - 如果需要通过 Page Functions 转发后端请求的 Pages 部署, 找到 `Deploy Frontend with page function`，点击 `Run workflow` 手动部署
 
-### 自动更新与 Page Functions 转发
+`Deploy Backend` 和 `Deploy Frontend` 仅支持手动运行。推送代码、推送 tag 或完成上游同步都不会触发这两个 workflow。
 
-如果你既想通过 `Upstream Sync` 自动更新，又想让 Pages 通过 Page Functions 转发后端请求，请使用 `Deploy Frontend with page function` workflow，而不是 `Deploy Frontend`。
+### 上游同步与 Page Functions 转发
+
+如果需要 Pages 通过 Page Functions 转发后端请求，请使用 `Deploy Frontend with page function` workflow。
 
 - 先启用 `Upstream Sync`、`Deploy Backend` 和 `Deploy Frontend with page function`
 - 在仓库 `Secrets` 中配置 `PAGE_TOML`，内容复制 `pages/wrangler.toml`
 - 将 `PAGE_TOML` 里的 `service` 改成你的 Worker 后端名称
 - 这个 workflow 会执行 `pnpm build:pages`，前端走同域请求，不读取 `FRONTEND_ENV`
-- 每次 `Upstream Sync` 完成后，如果 `PAGE_TOML` 已配置，`Deploy Frontend with page function` 会自动部署前端
+- `Upstream Sync` 需要手动运行。每次同步完成后，如果 `PAGE_TOML` 已配置，`Deploy Frontend with page function` 仍会自动部署前端；推送 tag 也会触发此 workflow
+- 同步后如需部署后端，仍需手动运行 `Deploy Backend`
 
-## 如何配置自动更新
+如果希望前端也始终手动发布，请勿启用 `Deploy Frontend with page function`；前后端分离并直连 Worker 时使用 `Deploy Frontend`。
 
-1. 打开仓库的 `Actions` 页面，找到 `Upstream Sync`，点击 `enable workflow` 启用 `workflow`
-2. 如果 `Upstream Sync` 运行失败，到仓库主页点击 `Sync` 手动同步即可
+## 手动同步上游代码
+
+`Upstream Sync` 没有定时任务，需要在 `Actions` 页面点击 `Run workflow` 手动同步。同步后检查代码变更，再分别手动运行部署 workflow。详见 [上游代码同步](/zh/guide/actions/auto-update)。

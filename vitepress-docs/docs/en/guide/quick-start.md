@@ -51,4 +51,4 @@ Upgrading does not mean editing the old code already running in the Cloudflare c
 
 ### Github Actions Deployment
 
-- [How to Configure Auto-Update with Github Actions](/en/guide/actions/auto-update)
+- [Sync Upstream Code Manually with GitHub Actions](/en/guide/actions/auto-update)

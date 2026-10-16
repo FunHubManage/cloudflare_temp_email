@@ -51,4 +51,4 @@
 
 ### Github Actions 部署
 
-- [Github Actions 部署如何配置自动更新](/zh/guide/actions/auto-update)
+- [通过 GitHub Actions 手动同步上游代码](/zh/guide/actions/auto-update)

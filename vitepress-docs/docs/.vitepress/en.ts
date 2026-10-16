@@ -132,7 +132,7 @@ function sidebarGuide(): DefaultTheme.SidebarItem[] {
                 { text: 'Github Actions Configuration', link: 'actions/github-action' },
                 { text: 'Configure Email Routing', link: 'email-routing.md' },
                 { text: 'Configure Email Sending', link: 'config-send-mail' },
-                { text: 'Auto-Update Configuration', link: 'actions/auto-update' },
+                { text: 'Sync Upstream Code', link: 'actions/auto-update' },
             ]
         },
         {

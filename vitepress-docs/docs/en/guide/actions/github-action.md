@@ -57,17 +57,21 @@ Then go to the repository page `Settings` -> `Secrets and variables` -> `Actions
 - If you need separate frontend and backend deployment that talks to Worker directly, find `Deploy Frontend` and click `Run workflow` to select a branch and deploy manually
 - If you need Pages deployment with Page Functions forwarding backend requests, find `Deploy Frontend with page function` and click `Run workflow` to deploy manually
 
-### Auto-Update with Page Functions Forwarding
+`Deploy Backend` and `Deploy Frontend` run only when started manually. Code pushes, tag pushes, and upstream sync completion do not trigger these two workflows.
 
-If you want to use `Upstream Sync` for automatic updates and also let Pages forward backend requests through Page Functions, use the `Deploy Frontend with page function` workflow instead of `Deploy Frontend`.
+### Upstream Sync with Page Functions Forwarding
+
+If Pages needs to forward backend requests through Page Functions, use the `Deploy Frontend with page function` workflow.
 
 - Enable `Upstream Sync`, `Deploy Backend`, and `Deploy Frontend with page function`
 - Configure the `PAGE_TOML` repository secret by copying the content of `pages/wrangler.toml`
 - Change the `service` field in `PAGE_TOML` to your Worker backend name
 - This workflow runs `pnpm build:pages`, uses same-origin frontend requests, and does not read `FRONTEND_ENV`
-- After each completed `Upstream Sync`, `Deploy Frontend with page function` deploys the frontend automatically when `PAGE_TOML` is configured
+- Start `Upstream Sync` manually. After each completed sync, `Deploy Frontend with page function` still deploys the frontend automatically when `PAGE_TOML` is configured; tag pushes also trigger this workflow
+- To deploy the backend after syncing, run `Deploy Backend` manually
 
-## How to Configure Auto-Update
+If the frontend must also be published only manually, do not enable `Deploy Frontend with page function`; use `Deploy Frontend` for a separate frontend that connects directly to Worker.
 
-1. Open the `Actions` page of the repository, find `Upstream Sync`, and click `enable workflow` to enable the `workflow`
-2. If `Upstream Sync` fails, go to the repository homepage and click `Sync` to synchronize manually
+## Sync Upstream Code Manually
+
+`Upstream Sync` has no schedule. Start it with `Run workflow` on the `Actions` page. Review the changes after syncing, then run each deployment workflow manually. See [Sync Upstream Code](/en/guide/actions/auto-update).

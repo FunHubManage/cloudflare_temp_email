@@ -132,7 +132,7 @@ function sidebarGuide(): DefaultTheme.SidebarItem[] {
                 { text: 'Github Actions 配置', link: 'actions/github-action' },
                 { text: '配置邮件转发', link: 'email-routing.md' },
                 { text: '配置发送邮件', link: 'config-send-mail' },
-                { text: '自动更新配置', link: 'actions/auto-update' },
+                { text: '上游代码同步', link: 'actions/auto-update' },
             ]
         },
         {
