@@ -1,10 +1,12 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useEventListener } from '@vueuse/core'
 import { useScopedI18n } from '@/i18n/app'
-import { useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 
 import { useGlobalState } from '../store'
 import { api } from '../api'
+import { useAdminBulkMail } from '../composables/use-admin-bulk-mail'
 import { getRouterPathWithLang, hashPassword } from '../utils'
 import Turnstile from '../components/Turnstile.vue'
 
@@ -35,7 +37,7 @@ import RedeemCodes from './admin/RedeemCodes.vue';
 const {
   adminAuth, showAdminAuth, adminTab, loading,
   globalTabplacement, showAdminPage, userSettings,
-  openSettings
+  openSettings, userJwt, auth, showAuth
 } = useGlobalState()
 const message = useMessage()
 const router = useRouter()
@@ -45,6 +47,26 @@ const SendMail = defineAsyncComponent(() => {
   return import('./admin/SendMail.vue')
     .finally(() => loading.value = false);
 });
+const BulkMail = defineAsyncComponent(() => import('./admin/BulkMail.vue'));
+
+// The batch belongs to the admin page, so switching its child tabs is safe.
+const bulkMail = useAdminBulkMail({
+  send: payload => api.fetch('/admin/send_mail', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    showLoading: false,
+  }),
+  canSend: () => openSettings.value.fetched && userSettings.value.fetched
+    && showAdminPage.value && !showAdminAuth.value && !showAuth.value,
+});
+watch([
+  adminAuth, userJwt, auth, showAdminAuth, showAuth, showAdminPage,
+  () => userSettings.value.user_id,
+  () => userSettings.value.is_admin,
+  () => openSettings.value.disableAdminPasswordCheck,
+], () => bulkMail.pause('access_changed'), { flush: 'sync' });
+onBeforeRouteLeave(() => { bulkMail.pause('leaving_admin'); });
+useEventListener(window, 'pagehide', () => bulkMail.pause('leaving_admin'));
 
 const cfToken = ref('')
 const turnstileRef = ref(null)
@@ -69,6 +91,7 @@ const authFunc = async () => {
 const showLogoutModal = ref(false)
 
 const handleLogout = async () => {
+  bulkMail.pause('access_changed');
   // 清空管理员认证
   adminAuth.value = '';
   // 重置管理员相关状态
@@ -190,6 +213,9 @@ onMounted(async () => {
           </n-tab-pane>
           <n-tab-pane name="sendMail" :tab="t('sendMail')">
             <SendMail />
+          </n-tab-pane>
+          <n-tab-pane name="bulkMail" :tab="t('bulkMail')">
+            <BulkMail :controller="bulkMail" />
           </n-tab-pane>
           <n-tab-pane name="mailWebhook" :tab="t('mailWebhook')">
             <MailWebhook />

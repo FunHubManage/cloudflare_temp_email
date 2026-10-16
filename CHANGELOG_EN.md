@@ -10,12 +10,14 @@
 
 ### Features
 
+- feat: |Admin| Add bulk mail with table controls for individual or multiple recipients (up to 100), dynamic subject/body variables, desktop side previews, stacked mobile previews and sequential sending; save drafts and progress in the current browser session and resume pending messages only after a pause
 - feat: |Webhook| Add email filters with condition/AND/OR/NOT nodes, nesting, string and native regex matching, visual/JSON editing and rule checking; preserve all original From headers while still removing attachments when From is missing or invalid (issue #1155)
 - feat: |User| Search bound mailboxes by email address in address management with accurate pagination (issue #1156)
 - feat: |AI Extract| Add `AI_EXTRACT_MODE` to explicitly choose local rules only (`local`) or prefer Workers AI (`ai`); defaults to local rules when unset so mail content is never sent to AI. **Upgrade note**: deployments that relied on the Workers AI binding to enable AI extraction automatically must set `AI_EXTRACT_MODE = "ai"`
 
 ### Bug Fixes
 
+- fix: |Admin| Narrow the bulk mail editor and widen its right preview, matching the editor's height on desktop with internal scrolling for long messages; reuse the smallest available variable number and restart at var1 after all variables are removed
 - fix: |Mail| Check the SMTP envelope sender and every From email address against sender blacklists; parse addresses independently so body parsing failures or multiple From addresses cannot skip matching; preserve envelope checks on address parsing errors
 - fix: |AI Extract| In `ai` mode, an address allowlist miss now skips only the Workers AI call and still falls back to local verification-code extraction
 - fix: |Telegram| Fall back to HTML-to-text conversion when plain text body is empty, preventing "parse failed" messages in Telegram notifications

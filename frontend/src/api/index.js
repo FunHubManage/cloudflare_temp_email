@@ -71,13 +71,21 @@ const apiFetch = async (path, options = {}) => {
             showAuth.value = true;
         }
         if (response.status >= 300) {
-            throw new Error(`[${response.status}]: ${response.data?.message || response.data}`);
+            throw Object.assign(new Error(`[${response.status}]: ${response.data?.message || response.data}`), {
+                status: response.status,
+                data: response.data,
+                code: response.data?.code,
+            });
         }
         const data = response.data;
         return data;
     } catch (error) {
         if (error.response) {
-            throw new Error(`Code ${error.response.status}: ${error.response.data?.message || error.response.data}`);
+            throw Object.assign(new Error(`Code ${error.response.status}: ${error.response.data?.message || error.response.data}`), {
+                status: error.response.status,
+                data: error.response.data,
+                code: error.response.data?.code || error.code,
+            });
         }
         throw error;
     } finally {
