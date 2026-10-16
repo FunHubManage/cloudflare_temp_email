@@ -1,14 +1,57 @@
 name: Deploy Frontend
+run-name: Deploy Frontend (${{ inputs.site }}) from ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
+    inputs:
+      site:
+        description: Site to deploy
+        required: true
+        default: funhub
+        type: choice
+        options:
+          - funhub
+          - subsubman
+
+concurrency:
+  group: deploy-frontend-${{ inputs.site }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
 
 jobs:
   deploy-frontend:
+    environment: ${{ inputs.site }}
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_SITE: ${{ inputs.site }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Prepare frontend configuration
+        env:
+          FRONTEND_ENV_CONTENT: ${{ secrets.FRONTEND_ENV }}
+          FRONTEND_NAME: ${{ secrets.FRONTEND_NAME }}
+        run: |
+          if [ -z "$FRONTEND_ENV_CONTENT" ]; then
+            echo "::error::Configure FRONTEND_ENV in the selected GitHub environment."
+            exit 1
+          fi
+          if [ -z "$FRONTEND_NAME" ]; then
+            echo "::error::Configure FRONTEND_NAME in the selected GitHub environment."
+            exit 1
+          fi
+          if [ "$DEPLOY_SITE" = "funhub" ] && [ "$FRONTEND_NAME" != "funhubmail" ]; then
+            echo "::error::The funhub environment must set FRONTEND_NAME to funhubmail."
+            exit 1
+          fi
+          if [ "$DEPLOY_SITE" = "subsubman" ] && [ "$FRONTEND_NAME" = "funhubmail" ]; then
+            echo "::error::The subsubman environment must use its own Pages project, not funhubmail."
+            exit 1
+          fi
+          printf '%s\n' "$FRONTEND_ENV_CONTENT" > frontend/.env.prod
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -21,27 +64,33 @@ jobs:
           version: 10
           run_install: false
 
-      - name: Deploy Frontend for ${{ github.ref_name }}
-        if: ${{ env.FRONTEND_NAME != '' }}
+      - name: Build selected frontend
+        working-directory: frontend
         run: |
-          cd frontend/
-          echo "${{ secrets.FRONTEND_ENV }}" > .env.prod
           pnpm install --no-frozen-lockfile
-          export frontend_branch="${{ secrets.FRONTEND_BRANCH }}"
-          if [ -n "$frontend_branch" ]; then
-            echo "Deploying branch $frontend_branch"
-            pnpm run deploy:actions --project-name=$FRONTEND_NAME --branch $frontend_branch
-          else
-            echo "Deploying branch production"
-            pnpm run deploy --project-name=$FRONTEND_NAME
-          fi
-          echo "Deployed for tag ${{ github.ref_name }}"
+          node --input-type=module <<'JS'
+          import { loadEnv } from 'vite';
+
+          const domains = { funhub: 'funhub.tw', subsubman: 'subsubman.com' };
+          const expectedApiBase = `https://apimail.${domains[process.env.DEPLOY_SITE]}`;
+          if (loadEnv('prod', process.cwd()).VITE_API_BASE !== expectedApiBase) {
+            throw new Error('FRONTEND_ENV must set VITE_API_BASE to the selected site\'s API root.');
+          }
+          JS
+          pnpm build
+
+      - name: Deploy selected Pages project
+        working-directory: frontend
+        run: |
+          pnpm exec wrangler pages deploy ./dist --project-name "$FRONTEND_NAME" --branch "${FRONTEND_BRANCH:-main}"
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           FRONTEND_NAME: ${{ secrets.FRONTEND_NAME }}
+          FRONTEND_BRANCH: ${{ secrets.FRONTEND_BRANCH }}
 
   deploy-telegram-frontend:
+    environment: ${{ inputs.site }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -58,22 +107,24 @@ jobs:
           version: 10
           run_install: false
 
-      - name: Deploy Telegram Frontend for ${{ github.ref_name }}
+      - name: Deploy selected Telegram frontend
         if: ${{ env.TG_FRONTEND_NAME != '' }}
         run: |
           cd frontend/
-          echo "${{ secrets.FRONTEND_ENV }}" > .env.prod
+          printf '%s\n' "$FRONTEND_ENV_CONTENT" > .env.prod
           pnpm install --no-frozen-lockfile
-          export frontend_branch="${{ secrets.FRONTEND_BRANCH }}"
+          frontend_branch="$FRONTEND_BRANCH"
           if [ -n "$frontend_branch" ]; then
             echo "Deploying telegram mini app branch $frontend_branch"
-            pnpm run deploy:actions:telegram --project-name=$TG_FRONTEND_NAME --branch $frontend_branch
+            pnpm run deploy:actions:telegram --project-name="$TG_FRONTEND_NAME" --branch "$frontend_branch"
           else
             echo "Deploying telegram mini app branch production"
-            pnpm run deploy:telegram --project-name=$TG_FRONTEND_NAME
+            pnpm run deploy:telegram --project-name="$TG_FRONTEND_NAME"
           fi
-          echo "Deployed telegram mini app for ${{ github.ref_name }}"
+          echo "Deployed Telegram mini app from $GITHUB_REF_NAME"
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           TG_FRONTEND_NAME: ${{ secrets.TG_FRONTEND_NAME }}
+          FRONTEND_ENV_CONTENT: ${{ secrets.FRONTEND_ENV }}
+          FRONTEND_BRANCH: ${{ secrets.FRONTEND_BRANCH }}

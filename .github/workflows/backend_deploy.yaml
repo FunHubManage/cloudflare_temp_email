@@ -1,16 +1,58 @@
 name: Deploy Backend
+run-name: Deploy Backend (${{ inputs.site }}) from ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
+    inputs:
+      site:
+        description: Site to deploy
+        required: true
+        default: funhub
+        type: choice
+        options:
+          - funhub
+          - subsubman
+
+concurrency:
+  group: deploy-backend-${{ inputs.site }}
+  cancel-in-progress: false
 
 jobs:
   deploy:
+    environment: ${{ inputs.site }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
+    env:
+      DEPLOY_SITE: ${{ inputs.site }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Validate backend configuration
+        env:
+          WRANGLER_TOML_CONTENT: ${{ secrets.BACKEND_TOML }}
+        run: |
+          if [ -z "$WRANGLER_TOML_CONTENT" ]; then
+            echo "::error::Configure BACKEND_TOML in the selected GitHub environment."
+            exit 1
+          fi
+          printf '%s\n' "$WRANGLER_TOML_CONTENT" > worker/wrangler.toml
+          python3 - <<'PY'
+          import os
+          import tomllib
+
+          site = os.environ["DEPLOY_SITE"]
+          with open("worker/wrangler.toml", "rb") as config_file:
+              config = tomllib.load(config_file)
+          if config.get("name") != f"{site}mailapi":
+              raise SystemExit("BACKEND_TOML Worker name does not match the selected site.")
+          database = next((item for item in config.get("d1_databases", []) if item.get("binding") == "DB"), {})
+          if database.get("database_name") != f"{site}mail" or not database.get("database_id"):
+              raise SystemExit("BACKEND_TOML must bind DB to the selected site's existing database.")
+          if config.get("keep_vars") is not True:
+              raise SystemExit("BACKEND_TOML must set keep_vars = true to preserve dashboard variables.")
+          PY
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -24,11 +66,8 @@ jobs:
           version: 10
           run_install: false
 
-      - name: Deploy Backend for ${{ github.ref_name }}
+      - name: Deploy selected backend
         run: |
-          export use_worker_assets=${{ secrets.USE_WORKER_ASSETS }}
-          export use_worker_assets_with_telegram=${{ secrets.USE_WORKER_ASSETS_WITH_TELEGRAM }}
-          
           if [ -n "$use_worker_assets" ]; then
             cd frontend/
             pnpm install --no-frozen-lockfile
@@ -42,13 +81,7 @@ jobs:
             cd ..
           fi
 
-          export debug_mode=${{ secrets.DEBUG_MODE }}
-          export use_mail_wasm_parser=${{ secrets.BACKEND_USE_MAIL_WASM_PARSER }}
-          
           cd worker/
-          # ✅ 修复核心：使用环境变量写入，避免 Shell 解析特殊字符
-          printf '%s\n' "$WRANGLER_TOML_CONTENT" > wrangler.toml
-          
           pnpm install --no-frozen-lockfile
 
           if [ -n "$use_mail_wasm_parser" ]; then
@@ -69,9 +102,11 @@ jobs:
               exit "$code"
             fi
           fi
-          echo "Deployed for tag ${{ github.ref_name }}"
+          echo "Deployed $DEPLOY_SITE backend from $GITHUB_REF_NAME"
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          # ✅ 将 secret 映射到环境变量中
-          WRANGLER_TOML_CONTENT: ${{ secrets.BACKEND_TOML }}
+          use_worker_assets: ${{ secrets.USE_WORKER_ASSETS }}
+          use_worker_assets_with_telegram: ${{ secrets.USE_WORKER_ASSETS_WITH_TELEGRAM }}
+          debug_mode: ${{ secrets.DEBUG_MODE }}
+          use_mail_wasm_parser: ${{ secrets.BACKEND_USE_MAIL_WASM_PARSER }}
